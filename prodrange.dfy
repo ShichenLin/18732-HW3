@@ -1,5 +1,5 @@
 module Specification {
-
+	
 	function method product (a:seq<real>, i:int, j:int) : real
 		requires 0 <= i <= |a|
 		requires 0 <= j <= |a|
@@ -8,16 +8,66 @@ module Specification {
 		// Fill in the correct specification here
 		if i >= j then 1.0 else a[j-1] * product(a, i, j-1)
 	}
-	
+	/*
+	function method product (a:seq<real>, i:int, j:int) : real
+		requires 0 <= i <= |a|
+		requires 0 <= j <= |a|
+		decreases j - i;
+	{
+		// Fill in the correct specification here
+		if i >= j then 1.0 else a[i] * product(a, i+1, j)
+	}
+	*/
 	lemma product_right (a:seq<real>, i:int, j:int)
 		requires 0 <= i <= |a|
 		requires 0 <= j <= |a|
 		requires i <= j
 		ensures if i < j then product(a, i, j) == product(a, i, j-1) * a[j-1] else product(a, i, j) == 1.0
-		decreases j - i;
-	{
+		{}
 	
+	lemma hehe (a:seq<real>, i:int, j:int)
+		requires 0 <= i <= |a|
+		requires 0 <= j <= |a|
+		requires i <= j
+		ensures if i < j then product(a, i, j) == product(a, i+1, j) * a[i] else product(a, i, j) == 1.0
+	{     
 	}
+
+	/*
+	lemma product_right (a:seq<real>, i:int, j:int)
+		requires 0 <= i <= |a|
+		requires 0 <= j <= |a|
+		requires i <= j
+		ensures if i < j then product(a, i, j) == product(a, i, j-1) * a[j-1] else product(a, i, j) == 1.0
+		decreases j - i
+	{
+		if i == j
+		{
+			assert(product(a, i, j) == 1.0);
+		}
+		else if i == j - 1
+		{
+			assert(product(a, i, j) == a[i]);
+		}
+		else
+		{
+			assert(i < j-1);
+			assert(i+1 < j);
+			assert(i+1 <= j-1);
+			product_right(a, i+1, j);
+			assert(product(a, i+1, j-1) * a[j-1] == product(a, i+1, j));
+			assert(product(a, i+1, j-1) * a[j-1] * a[i] == product(a, i+1, j) * a[i]);
+			hehe(a, i, j-1);
+			assert(product(a, i+1, j-1) * a[i] == product(a, i, j-1));
+
+			assert(product(a, i+1, j-1) * a[i] * a[j-1] == product(a, i, j-1) * a[j-1]);
+			//hehehe(product(a, i, j-1) * a[j-1], product(a, i+1, j) * a[i], product(a, i+1, j-1) * a[i] * a[j-1]);
+			assert(product(a, i, j-1) * a[j-1] == product(a, i+1, j) * a[i]);
+			hehe(a, i, j);
+			assert(product(a, i, j) == product(a, i+1, j) * a[i]);
+			assert(product(a, i, j) == product(a, i, j-1) * a[j-1]);
+		}
+	}*/
 }
 
 module Simple {
@@ -69,7 +119,8 @@ module CumulativeArray {
 		var index := 1;
 		while index < c.Length
 			invariant 1 <= index <= c.Length
-			invariant is_cumulative_array_for(c[..index], a[..index-1])
+			invariant c[index-1] == Specification.product(a[..], 0, index-1)
+			invariant forall k :: 0 <= k < index ==> c[k] == Specification.product(a[..], 0, k)
 		{
 			c[index] := c[index-1] * a[index-1];
 			index := index + 1;
@@ -87,7 +138,25 @@ module CumulativeArray {
 		ensures res == Specification.product(a[..],i,j)
 	{
 		// Fill in an implementation that verifies
-		res := c[j] / c[i];
+		if i < j
+		{
+			var index;
+			index := j;
+      
+      while index > i
+        invariant i <= index <= j
+        invariant Specification.product(a[..], 0, index) * Specification.product(a[..], index, j) == Specification.product(a[..], 0, j)
+      {
+				Specification.product_right(a[..], 0, index);
+        index := index - 1;
+        Specification.hehe(a[..], index, j);
+      }
+			
+			res := c[j] / c[i];
+		}
+		else{
+			res := 1.0;
+		}
 	}
 
 	/** [update(c, a, i, v)] updates cell [a[i]] to value [v] 
@@ -111,14 +180,15 @@ module CumulativeArray {
 		assert(forall k :: 0 <= k < i+1 ==> c[k] == Specification.product(a[..], 0, k));
 		while index < c.Length
 			invariant i+1 <= index <= c.Length
-      		invariant c[index-1] == Specification.product(a[..], 0, index-1)
+			invariant c[index-1] == Specification.product(a[..], 0, index-1)
 			invariant forall k :: i+1 <= k < index ==> c[k] == Specification.product(a[..], 0, k)
 			invariant forall k :: 0 <= k < i+1 ==> c[k] == Specification.product(a[..], 0, k)
-      		invariant a[i] == v
+			invariant a[i] == v
 		{
-      		Specification.product_right(a[..], 0, index);
+			Specification.product_right(a[..], 0, index);
 			c[index] := c[index-1] * a[index-1]; 
 			index := index + 1;		
 		}
 	}
 }
+
