@@ -16,16 +16,7 @@ module Specification {
 		ensures if i < j then product(a, i, j) == product(a, i, j-1) * a[j-1] else product(a, i, j) == 1.0
 		decreases j - i;
 	{
-		if i == j
-		{
-			assert(product(a, i, j) == 1.0);
-		}
-		else
-		{
-			assert(i < j);
-			product_right(a, i, j-1);
-			assert(product(a, i, j) == product(a, i, j-1) * a[j-1]);
-		}
+	
 	}
 }
 
@@ -117,12 +108,17 @@ module CumulativeArray {
         // Fill in an implementation that verifies
 		a[i] := v;
 		var index := i + 1;
+		assert(forall k :: 0 <= k < i+1 ==> c[k] == Specification.product(a[..], 0, k));
 		while index < c.Length
-			invariant i+1 <= index < c.Length
-			invariant is_cumulative_array_for(c[..index], a[..index-1])
+			invariant i+1 <= index <= c.Length
+      		invariant c[index-1] == Specification.product(a[..], 0, index-1)
+			invariant forall k :: i+1 <= k < index ==> c[k] == Specification.product(a[..], 0, k)
+			invariant forall k :: 0 <= k < i+1 ==> c[k] == Specification.product(a[..], 0, k)
+      		invariant a[i] == v
 		{
-			c[index] := c[index-1] * a[index-1];
-			index := index + 1;
+      		Specification.product_right(a[..], 0, index);
+			c[index] := c[index-1] * a[index-1]; 
+			index := index + 1;		
 		}
 	}
 }
