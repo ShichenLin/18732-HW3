@@ -1,184 +1,193 @@
-module Specification {
-	function method product (a:seq<real>, i:int, j:int) : real
-		requires 0 <= i <= |a|
-		requires 0 <= j <= |a|
-		decreases j - i;
-	{
-		// Fill in the correct specification here
-		if i >= j then 1.0 else a[i] * product(a, i+1, j)
-	}
-	lemma product_right (a:seq<real>, i:int, j:int)
-		requires 0 <= i <= |a|
-		requires 0 <= j <= |a|
-		requires i <= j
-		ensures i < j ==> product(a, i, j) == product(a, i, j-1) * a[j-1]
-		decreases j - i
-	{
-		if i == j
-		{
-			//assert(product(a, i, j) == 1.0);
-		}
-		else
-		{
-			//assert(i < j);
-			product_right(a, i+1, j);
-		}
-	}
-}
+// NOTE: Do NOT modify anything other than the lines marked with TODOs
 
-module Simple {
-	import Specification
+module PostOffice {
 
-	/** [query(a, i, j)] returns the product of elements in [a] between index [i] inclusive and index [j] exclusive */
-	method Main(a:array<real>, i:int, j:int) returns (res:real)
-		requires 0 <= i <= a.Length
-		requires 0 <= j <= a.Length
-		ensures res == Specification.product(a[..], i, j)
+	datatype state = State(
+		BoxCount: int,
+		Time: int,
+		CalledAt: int,
+		Called: bool
+	)
+
+	predicate Valid(s:state)
 	{
-		// Fill in an implementation that verifies
-		if(i < j)
+		// TODO: Write what it means for a state to be valid here
+		(s.BoxCount >= 0) 
+		&& (0 <= s.Time <= 1000 - 1) 
+		&& (0 <= s.CalledAt < 1000 - 3)
+		&& (s.CalledAt <= s.Time)
+	}
+
+	// Write appropriate pre and post conditions for all of the methods below
+
+	method NewDay() returns (s:state)
+		// TODO
+		ensures s.BoxCount == 0
+		ensures s.Time == 0
+		ensures s.CalledAt == 0
+		ensures s.Called == false
+		ensures Valid(s)
+	{
+		s := State(0, 0, 0, false);
+	}
+
+	method DropOff(s:state) returns (s':state)
+		// TODO
+		requires Valid(s)
+		requires s.Time < 1000 - 3
+
+		ensures s'.BoxCount == s.BoxCount + 1
+		ensures if (s.BoxCount + 1 > 20 && !s.Called) 
+			then s'.Called && s'.CalledAt == s'.Time 
+			else s'.Called == s.Called && s'.CalledAt == s.CalledAt
+		ensures s'.Time == s.Time
+		ensures s'.BoxCount > 0
+		ensures Valid(s')
+	{
+		s' := s.(BoxCount := s.BoxCount + 1);
+		if s'.BoxCount > 20 && !s'.Called {
+			/* Automatically trigger a call if the dropoff causes the
+				 threshold to be crossed, and if the truck wasn't called yet. */
+			s' := s'.(Called := true, CalledAt := s'.Time);
+		}
+	}    
+
+	method PickUp(s:state) returns (s':state)
+		// TODO
+		requires Valid(s)
+
+		ensures s'.BoxCount == 0
+		ensures s'.Called == false
+		ensures s'.Time == s.Time
+		ensures s'.CalledAt == s.CalledAt
+		ensures Valid(s')
+	{
+		s' := s.(BoxCount := 0, Called := false);
+	}
+
+	// Regular part of day, when pickups are allowed
+	method TickMidday(drop:bool, pick:bool, s:state) returns (s':state)
+		// TODO
+		requires Valid(s)
+		requires s.Time < 1000 - 3
+
+		ensures s'.CalledAt < s'.Time
+		ensures s.Called ==> s'.CalledAt == s.CalledAt
+		ensures s'.Time <= 1000 - 3
+		ensures s'.Time == s.Time + 1
+		ensures if pick then s'.BoxCount == 0 else s'.BoxCount >= s.BoxCount
+		ensures if pick then !s'.Called else s.Called ==> s'.Called
+		ensures s'.Called && !s.Called ==> s'.CalledAt == s.Time
+		ensures (s.Called ==> s.BoxCount > 0) ==> (s'.Called ==> s.BoxCount > 0)
+		ensures Valid(s')
+	{
+		s' := s;
+		if drop {
+			s' := DropOff(s');
+		}
+		
+		if pick {
+			s' := PickUp(s');
+		}
+
+		s' := s'.(Time := s'.Time + 1);
+	}
+
+	// When finishing up the day
+	method TickEoD(pick:bool, s:state) returns (s':state)
+		// TODO
+		requires Valid(s)
+		requires 1000 - 3 <= s.Time < 1000 - 1
+		requires s.CalledAt < 1000 - 3
+
+		ensures s'.CalledAt < s'.Time
+		ensures 1000 - 3 < s'.Time <= 1000
+		ensures s'.Time == s.Time + 1
+		ensures s'.CalledAt == s.CalledAt
+		ensures if pick then s'.BoxCount == 0 else s'.BoxCount == s.BoxCount
+		ensures if pick then !s'.Called else s.Called == s'.Called
+		ensures Valid(s')
+	{
+		s' := s;
+		if pick {
+			s' := PickUp(s');
+		}
+		s' := s'.(Time := s'.Time + 1);
+	}
+
+	method WholeDay(dropoffs:seq<bool>)
+		// TODO
+		requires |dropoffs| == 1000 - 3
+	{
+		var s := NewDay();
+		var pickups := [false, false];
+		while s.Time < 1000 - 1
+			// TODO: Some more invariants are needed here to prove the two asserts below. Write them.
+			decreases  1000 - 1 - s.Time
+			invariant Valid(s)
+			invariant s.Called ==> (0 < s.Time - s.CalledAt <= 2)
+
+			invariant |pickups| == 2
+			invariant old(|dropoffs|) == |dropoffs|
+			invariant 0 <= s.Time <= 1000 - 1
+			invariant s.Time > 1000 - 2 ==> s.BoxCount == 0
+			invariant s.Called ==> (s.Time - s.CalledAt <= 2)
+			invariant (s.Called && s.CalledAt == s.Time - 1) == pickups[1]
+			invariant (s.Called && s.CalledAt == s.Time - 2) ==> pickups[0]
+			invariant s.Called ==> true in pickups
+			invariant s.Called ==> s.BoxCount > 0		
+			invariant pickups[0] ==> s.BoxCount > 0 && s.Called
+			invariant s.BoxCount > 0 && s.Time == 1000 - 3 ==> s.Called
+			invariant s.BoxCount > 0 && s.Time == 1000 - 3 ==> true in pickups
+			invariant s.BoxCount > 0 && s.Time == 1000 - 2 ==> true in pickups[..(|pickups|-1)]
+			invariant pickups[0] ==> !pickups[1]
+			invariant pickups[1] ==> !pickups[0]
 		{
-			var index := i;
-			res := 1.0;
-			while index < j
-				invariant i <= index <= j
-				invariant res == Specification.product(a[..], i, index)
-			{
-				res := res * a[index];
-				index := index + 1;
-				Specification.product_right(a[..], i, index);
+			var stime_old := s.Time;
+			var pickups_old := pickups;
+			var scalledat_old := s.CalledAt;
+			var scalled_old := s.Called;
+			var sboxcount_old := s.BoxCount;
+
+			if s.Time < 1000 - 3 {
+				s := TickMidday(dropoffs[s.Time], pickups[0], s);
+			} else {
+				s := TickEoD(pickups[0], s);
 			}
+			
+			if s.Time == 1000 - 3 {
+				if s.BoxCount > 0 && !s.Called {
+					s := s.(Called := true, CalledAt := s.Time - 1); // -1 since already incremented by now
+				}
+			}
+
+			pickups := pickups[1..] + [s.Called && s.CalledAt == s.Time - 1];
+
+			//proof of s.BoxCount > 0 && s.Time == 1000 - 3 ==> true in pickups
+			assert s.Called ==> (s.Time - s.CalledAt == 1 || s.Time - s.CalledAt == 2);
+			assert pickups_old[1] == pickups[0];
+			assert stime_old == s.Time - 1;
+			assert pickups_old[1] ==> !pickups_old[0];
+			assert !pickups_old[0] ==> scalled_old ==> s.Called;
+			assert scalled_old && scalledat_old == stime_old - 1 ==> s.Called;
+			assert (scalled_old && scalledat_old == stime_old - 1) == pickups_old[1];
+			assert scalled_old && scalledat_old == stime_old - 1 ==> scalled_old == s.Called;			
+
+			assert s.Called && s.Time - s.CalledAt == 2 ==> scalled_old;
+			assert (s.Called && s.CalledAt == s.Time - 2) ==> (scalled_old && scalledat_old == stime_old - 1);
+			assert (s.Called && s.CalledAt == s.Time - 2) ==> pickups[0];
+			assert (s.Called && s.CalledAt == s.Time - 1) == pickups[1];
+			assert s.Called ==> true in pickups;
+
+			//proof of s.BoxCount > 0 && s.Time == 1000 - 2 ==> true in pickups[..(|pickups|-1)]
+			assert stime_old == 997 && sboxcount_old > 0 ==> scalled_old;
+			assert s.Time == 998 && s.BoxCount > 0 ==> sboxcount_old > 0;
+			assert s.Time == 998 && s.BoxCount > 0 ==> scalled_old;
+			assert s.Time == 998 && s.BoxCount > 0 ==> (scalled_old && scalledat_old == stime_old - 1);
+			assert s.Time == 998 && s.BoxCount > 0 ==> pickups_old[1];
+			assert s.Time == 998 && s.BoxCount > 0 ==> pickups[0];
 		}
-		else
-		{
-		  res := 1.0;
-		}
+		assert (s.Time == 1000 - 1);
+		assert (s.BoxCount == 0);
 	}
 }
-
-module CumulativeArray {
-	import Specification
-
-	predicate is_cumulative_array_for(c:seq<real>, a:seq<real>)
-	{
-		|a| + 1 == |c| &&
-		forall i :: 0 <= i < |c| ==> c[i] == Specification.product(a, 0, i)
-	}
-
-    /** [construct(a)] returns the the cumulative product array for a. */
-	method construct(a:array<real>) returns (c:array<real>)
-		ensures is_cumulative_array_for(c[..], a[..]);
-	{
-		c := new real[a.Length + 1];
-		// Fill in an implementation that verifies
-		c[0] := 1.0;
-		var index := 1;
-		while index < c.Length
-			invariant 1 <= index <= c.Length
-			invariant c[index-1] == Specification.product(a[..], 0, index-1)
-			invariant forall k :: 0 <= k < index ==> c[k] == Specification.product(a[..], 0, k)
-		{
-			c[index] := c[index-1] * a[index-1];
-			index := index + 1;
-			Specification.product_right(a[..], 0, index-1);
-		}
-	}
-
-	/** [query2(a, i, j)] returns the product of elements in [a] between index [i] inclusive and index [j] exclusive */
-	method query2(c:array<real>, i:int, j:int, ghost a:array<real>) returns (res:real)
-		requires 0 <= i < c.Length
-		requires 0 <= j < c.Length
-		requires a.Length + 1 == c.Length
-		requires forall k :: 0 <= k < c.Length ==> c[k] != 0.0
-		requires is_cumulative_array_for(c[..], a[..])
-		ensures res == Specification.product(a[..],i,j)
-	{
-		// Fill in an implementation that verifies
-		if i < j
-		{
-			var index;
-			index := j;
-      
-      while index > i
-        invariant i <= index <= j
-        invariant Specification.product(a[..], 0, index) * Specification.product(a[..], index, j) == Specification.product(a[..], 0, j)
-      {
-				Specification.product_right(a[..], 0, index);
-        index := index - 1;
-      }
-			
-			res := c[j] / c[i];
-		}
-		else{
-			res := 1.0;
-		}
-	}
-
-	lemma unchanged_product (a:seq<real>, b:seq<real>, i:int)
-		requires 0 <= i < |a|
-		requires |a| == |b|
-		requires forall k :: 0 <= k < i ==> a[k] == b[k];
-		ensures Specification.product(a, 0, i) == Specification.product(b, 0, i)
-	{
-		if i == 0
-		{
-			
-		}
-		else
-		{
-			unchanged_product(a, b, i-1);
-			Specification.product_right(a, 0, i);
-			Specification.product_right(b, 0, i);
-		}
-	}
-
-	lemma preserved (a:seq<real>, b:seq<real>, c:seq<real>, i:int)
-		requires is_cumulative_array_for(c, a)
-		requires 0 <= i < |a|
-		requires |a| == |b|
-		requires forall k :: 0 <= k < i ==> a[k] == b[k];
-		ensures forall k :: 0 <= k <= i ==> c[k] == Specification.product(b, 0, k)
-	{
-		forall k | 0 <= k <= i
-			ensures c[k] == Specification.product(b, 0, k)
-		{
-			unchanged_product(a, b, k);
-		}
-	}
-
-	/** [update(c, a, i, v)] updates cell [a[i]] to value [v] 
-	 and updates the cumulative array [c] accordingly,
-	 while touching a few cells of [c] as possible */
-	method update (c:array<real>, a:array<real>, i:int, v:real)
-		requires a != c;
-		requires 0 <= i < a.Length
-		requires a.Length + 1 == c.Length
-		requires is_cumulative_array_for(c[..], a[..])
-		modifies c, a
-		// [a] is updated appropriately
-		ensures a[i] == v
-		ensures forall k:: 0 <= k < a.Length && k != i ==> a[k] == old(a)[k]
-		// [c] is updated appropriately
-		ensures is_cumulative_array_for(c[..], a[..])
-	{
-		// Fill in an implementation that verifies
-		assert(forall k :: 0 <= k < i+1 ==> c[k] == Specification.product(a[..], 0, k));
-		a[i] := v;
-		var index := i + 1;
-		assert(forall k ::  0 <= k < i+1 ==> c[k] == old(c)[k]);
-		preserved(old(a[..]), a[..], c[..], i);
-		assert(forall k :: 0 <= k < i+1 ==> c[k] == Specification.product(a[..], 0, k));
-		while index < c.Length
-			invariant i+1 <= index <= c.Length
-			invariant c[index-1] == Specification.product(a[..], 0, index-1)
-			invariant forall k :: i+1 <= k < index ==> c[k] == Specification.product(a[..], 0, k)
-			invariant forall k :: 0 <= k < i+1 ==> c[k] == Specification.product(a[..], 0, k)
-			invariant a[i] == v
-		{
-			Specification.product_right(a[..], 0, index);
-			c[index] := c[index-1] * a[index-1]; 
-			index := index + 1;		
-		}
-	}
-}
-
