@@ -15,8 +15,7 @@ module PostOffice {
 		(s.BoxCount >= 0) 
 		&& (0 <= s.Time <= 1000 - 1) 
 		&& (0 <= s.CalledAt < 1000 - 3)
-		&& s.CalledAt <= s.Time
-		&& (s.Called ==> (s.Time - s.CalledAt <= 2))
+		&& (s.CalledAt <= s.Time)
 	}
 
 	// Write appropriate pre and post conditions for all of the methods below
@@ -35,7 +34,7 @@ module PostOffice {
 	method DropOff(s:state) returns (s':state)
 		// TODO
 		requires Valid(s)
-		requires s.Time < 997
+		requires s.Time < 1000 - 3
 
 		ensures s'.BoxCount == s.BoxCount + 1
 		ensures if (s.BoxCount + 1 > 20 && !s.Called) 
@@ -56,8 +55,6 @@ module PostOffice {
 	method PickUp(s:state) returns (s':state)
 		// TODO
 		requires Valid(s)
-		requires s.Called == true
-		requires s.BoxCount > 0
 
 		ensures s'.BoxCount == 0
 		ensures s'.Called == false
@@ -73,9 +70,6 @@ module PostOffice {
 		// TODO
 		requires Valid(s)
 		requires s.Time < 1000 - 3
-		requires s.Called && s.Time - s.CalledAt == 2 ==> pick
-		requires pick ==> s.Called && s.BoxCount > 0
-		requires s.Called ==> s.BoxCount > 0;
 
 		ensures s'.CalledAt < s'.Time
 		ensures s.Called ==> s'.CalledAt == s.CalledAt
@@ -83,8 +77,8 @@ module PostOffice {
 		ensures s'.Time == s.Time + 1
 		ensures if pick then s'.BoxCount == 0 else s'.BoxCount >= s.BoxCount
 		ensures if pick then !s'.Called else s.Called ==> s'.Called
-		ensures s'.Called ==> s'.BoxCount > 0
 		ensures s'.Called && !s.Called ==> s'.CalledAt == s.Time
+		ensures (s.Called ==> s.BoxCount > 0) ==> (s'.Called ==> s.BoxCount > 0)
 		ensures Valid(s')
 	{
 		s' := s;
@@ -96,9 +90,7 @@ module PostOffice {
 			s' := PickUp(s');
 		}
 
-		assert s'.Called ==> s'.BoxCount > 0;
 		s' := s'.(Time := s'.Time + 1);
-		assert s'.Called ==> s'.BoxCount > 0;
 	}
 
 	// When finishing up the day
@@ -107,8 +99,6 @@ module PostOffice {
 		requires Valid(s)
 		requires 1000 - 3 <= s.Time < 1000 - 1
 		requires s.CalledAt < 1000 - 3
-		requires s.Called && s.Time - s.CalledAt == 2 ==> pick
-		requires pick ==> s.Called && s.BoxCount > 0
 
 		ensures s'.CalledAt < s'.Time
 		ensures 1000 - 3 < s'.Time <= 1000
@@ -127,7 +117,7 @@ module PostOffice {
 
 	method WholeDay(dropoffs:seq<bool>)
 		// TODO
-		requires |dropoffs| == 1000
+		requires |dropoffs| == 1000 - 3
 	{
 		var s := NewDay();
 		var pickups := [false, false];
@@ -137,20 +127,21 @@ module PostOffice {
 			invariant Valid(s)
 			invariant s.Called ==> (0 < s.Time - s.CalledAt <= 2)
 
-			invariant 0 <= s.Time <= 1000 - 1
-			invariant s.Time > 1000 - 2 ==> s.BoxCount == 0
 			invariant |pickups| == 2
 			invariant old(|dropoffs|) == |dropoffs|
+			invariant 0 <= s.Time <= 1000 - 1
+			invariant s.Time > 1000 - 2 ==> s.BoxCount == 0
+			invariant s.Called ==> (s.Time - s.CalledAt <= 2)
 			invariant (s.Called && s.CalledAt == s.Time - 1) == pickups[1]
 			invariant (s.Called && s.CalledAt == s.Time - 2) ==> pickups[0]
 			invariant s.Called ==> true in pickups
 			invariant s.Called ==> s.BoxCount > 0		
-			invariant pickups[0] ==> !pickups[1]
-			invariant pickups[1] ==> !pickups[0]
 			invariant pickups[0] ==> s.BoxCount > 0 && s.Called
 			invariant s.BoxCount > 0 && s.Time == 1000 - 3 ==> s.Called
 			invariant s.BoxCount > 0 && s.Time == 1000 - 3 ==> true in pickups
 			invariant s.BoxCount > 0 && s.Time == 1000 - 2 ==> true in pickups[..(|pickups|-1)]
+			invariant pickups[0] ==> !pickups[1]
+			invariant pickups[1] ==> !pickups[0]
 		{
 			var stime_old := s.Time;
 			var pickups_old := pickups;
@@ -160,13 +151,9 @@ module PostOffice {
 
 			if s.Time < 1000 - 3 {
 				s := TickMidday(dropoffs[s.Time], pickups[0], s);
-				assert pickups_old[0] == pickups[0];
-				assert !pickups_old[0] ==> scalled_old ==> s.Called;
 			} else {
 				s := TickEoD(pickups[0], s);
 			}
-
-			assert scalled_old ==> s.CalledAt == scalledat_old;
 			
 			if s.Time == 1000 - 3 {
 				if s.BoxCount > 0 && !s.Called {
@@ -174,16 +161,7 @@ module PostOffice {
 				}
 			}
 
-			assert scalled_old ==> s.CalledAt == scalledat_old;
-			assert !pickups_old[0] ==> s.BoxCount >= sboxcount_old;
-
 			pickups := pickups[1..] + [s.Called && s.CalledAt == s.Time - 1];
-			
-			assert pickups[0] ==> s.Called;
-			assert s.Called ==> s.BoxCount > 0;
-			assert pickups[0] ==> s.BoxCount > 0;
-			assert pickups[0] ==> s.BoxCount > 0 && s.Called;
-			assert pickups[1] ==> s.BoxCount > 0;
 
 			//proof of s.BoxCount > 0 && s.Time == 1000 - 3 ==> true in pickups
 			assert s.Called ==> (s.Time - s.CalledAt == 1 || s.Time - s.CalledAt == 2);
