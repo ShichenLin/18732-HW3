@@ -30,7 +30,7 @@ module Simple {
 	import Specification
 
 	/** [query(a, i, j)] returns the product of elements in [a] between index [i] inclusive and index [j] exclusive */
-	method Main(a:array<real>, i:int, j:int) returns (res:real)
+	method query(a:array<real>, i:int, j:int) returns (res:real)
 		requires 0 <= i <= a.Length
 		requires 0 <= j <= a.Length
 		ensures res == Specification.product(a[..], i, j)

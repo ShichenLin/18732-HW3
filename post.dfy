@@ -12,10 +12,12 @@ module PostOffice {
 	predicate Valid(s:state)
 	{
 		// TODO: Write what it means for a state to be valid here
-		(s.BoxCount >= 0) 
-		&& (0 <= s.Time <= 1000 - 1) 
-		&& (0 <= s.CalledAt < 1000 - 3)
-		&& (s.CalledAt <= s.Time)
+		(0 <= s.CalledAt < 1000 - 3) &&
+		(0 <= s.Time < 1000) &&
+        (s.BoxCount >= 0) &&
+        (s.BoxCount > 20 ==> s.Called) &&
+        (s.BoxCount == 0 ==> !s.Called) &&
+		(s.CalledAt <= s.Time)
 	}
 
 	// Write appropriate pre and post conditions for all of the methods below
@@ -37,7 +39,7 @@ module PostOffice {
 		requires s.Time < 1000 - 3
 
 		ensures s'.BoxCount == s.BoxCount + 1
-		ensures if (s.BoxCount + 1 > 20 && !s.Called) 
+		ensures if (s'.BoxCount > 20 && !s.Called) 
 			then s'.Called && s'.CalledAt == s'.Time 
 			else s'.Called == s.Called && s'.CalledAt == s.CalledAt
 		ensures s'.Time == s.Time
@@ -71,12 +73,15 @@ module PostOffice {
 		requires Valid(s)
 		requires s.Time < 1000 - 3
 
-		ensures s'.CalledAt < s'.Time
 		ensures s.Called ==> s'.CalledAt == s.CalledAt
 		ensures s'.Time <= 1000 - 3
 		ensures s'.Time == s.Time + 1
-		ensures if pick then s'.BoxCount == 0 else s'.BoxCount >= s.BoxCount
-		ensures if pick then !s'.Called else s.Called ==> s'.Called
+		ensures !pick && drop ==> s'.BoxCount == s.BoxCount + 1 
+				&& (s'.BoxCount > 20 ==> s'.Called)
+		ensures !pick && !drop ==>  s'.BoxCount == s.BoxCount
+		ensures if pick 
+			then s'.BoxCount == 0 && !s'.Called 
+			else s.Called ==> s'.Called
 		ensures s'.Called && !s.Called ==> s'.CalledAt == s.Time
 		ensures (s.Called ==> s.BoxCount > 0) ==> (s'.Called ==> s.BoxCount > 0)
 		ensures Valid(s')
@@ -100,7 +105,6 @@ module PostOffice {
 		requires 1000 - 3 <= s.Time < 1000 - 1
 		requires s.CalledAt < 1000 - 3
 
-		ensures s'.CalledAt < s'.Time
 		ensures 1000 - 3 < s'.Time <= 1000
 		ensures s'.Time == s.Time + 1
 		ensures s'.CalledAt == s.CalledAt
